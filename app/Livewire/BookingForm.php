@@ -1,0 +1,260 @@
+<?php
+
+namespace App\Livewire;
+
+use App\Models\Booking;
+use App\Models\Lapangan;
+use App\Models\Setting;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Livewire\Component;
+
+class BookingForm extends Component
+{
+    public $lapangan;
+    public $selectedDate;
+    public $selectedTimeSlot;
+    public $nama_pemesan;
+    public $nomor_telepon;
+
+    public $availableDates = [];
+    public $availableTimeSlots = [];
+    public $bookedSlots = [];
+    public $operationalHours = [];
+    public $totalPrice = 0;
+
+    public function mount($lapanganId)
+    {
+        $this->lapangan = Lapangan::findOrFail($lapanganId);
+        $this->loadOperationalHours();
+        $this->generateAvailableDates();
+    }
+
+    public function loadOperationalHours()
+    {
+        $jamBuka = Setting::where('key', 'jam_buka')->first();
+        $jamTutup = Setting::where('key', 'jam_tutup')->first();
+
+        $this->operationalHours = [
+            'jam_buka' => $jamBuka ? $jamBuka->value : '06:00',
+            'jam_tutup' => $jamTutup ? $jamTutup->value : '23:00',
+        ];
+    }
+
+    public function generateAvailableDates()
+    {
+        $dates = [];
+        $today = Carbon::now();
+
+        for ($i = 0; $i < 7; $i++) {
+            $date = $today->copy()->addDays($i);
+            $dates[] = [
+                'date' => $date->format('Y-m-d'),
+                'day' => $this->getDayName($date->dayOfWeek),
+                'formatted' => $date->format('d M'),
+                'full_date' => $date
+            ];
+        }
+
+        $this->availableDates = $dates;
+    }
+
+    public function getDayName($dayOfWeek)
+    {
+        $days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+        return $days[$dayOfWeek];
+    }
+
+    public function selectDate($date)
+    {
+        $this->selectedDate = $date;
+        $this->selectedTimeSlot = null;
+        $this->updateAvailableTimeSlots();
+    }
+
+    public function selectTimeSlot($timeSlot)
+    {
+        $this->selectedTimeSlot = $timeSlot;
+        $this->calculatePrice();
+    }
+
+    public function updateAvailableTimeSlots()
+    {
+        if (!$this->selectedDate) return;
+
+        $this->bookedSlots = Booking::where('lapangan_id', $this->lapangan->id)
+            ->where('tanggal', $this->selectedDate)
+            ->where('status', '!=', 'cancelled')
+            ->get()
+            ->map(function ($booking) {
+                return [
+                    'jam_mulai' => Carbon::parse($booking->jam_mulai)->format('H:i'),
+                    'jam_selesai' => Carbon::parse($booking->jam_selesai)->format('H:i'),
+                ];
+            })->toArray();
+
+        $this->generateTimeSlots();
+    }
+
+    public function generateTimeSlots()
+    {
+        $jamBuka = Carbon::parse($this->operationalHours['jam_buka']);
+        $jamTutup = Carbon::parse($this->operationalHours['jam_tutup']);
+        $slots = [];
+
+        while ($jamBuka->lt($jamTutup)) {
+            $jamMulai = $jamBuka->format('H:i');
+            $jamSelesai = $jamBuka->copy()->addHour()->format('H:i');
+
+            $isBooked = $this->isSlotBooked($jamMulai, $jamSelesai);
+
+            $slots[] = [
+                'jam_mulai' => $jamMulai,
+                'jam_selesai' => $jamSelesai,
+                'label' => $jamMulai . ' - ' . $jamSelesai,
+                'price' => $this->lapangan->price,
+                'is_booked' => $isBooked,
+                'slot_key' => $jamMulai . '-' . $jamSelesai,
+            ];
+
+            $jamBuka->addHour();
+        }
+
+        $this->availableTimeSlots = $slots;
+    }
+
+    public function isSlotBooked($jamMulai, $jamSelesai)
+    {
+        foreach ($this->bookedSlots as $booked) {
+            $bookingStart = Carbon::parse($booked['jam_mulai']);
+            $bookingEnd = Carbon::parse($booked['jam_selesai']);
+            $slotStart = Carbon::parse($jamMulai);
+            $slotEnd = Carbon::parse($jamSelesai);
+
+            if ($slotStart->lt($bookingEnd) && $slotEnd->gt($bookingStart)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function calculatePrice()
+    {
+        if ($this->selectedTimeSlot && $this->lapangan->price) {
+            $this->totalPrice = $this->lapangan->price;
+        }
+    }
+
+    public function submitBooking()
+    {
+        $this->validate([
+            'nama_pemesan' => 'required|string|max:255',
+            'nomor_telepon' => 'required|string|max:20',
+        ]);
+
+        if (!$this->selectedDate || !$this->selectedTimeSlot) {
+            session()->flash('error', 'Silakan pilih tanggal dan jam terlebih dahulu.');
+            return;
+        }
+
+        $timeSlot = collect($this->availableTimeSlots)
+            ->firstWhere('slot_key', $this->selectedTimeSlot);
+
+        if (!$timeSlot || $timeSlot['is_booked']) {
+            session()->flash('error', 'Maaf, slot waktu yang dipilih sudah tidak tersedia.');
+            $this->updateAvailableTimeSlots();
+            return;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $booking = Booking::create([
+                'lapangan_id' => $this->lapangan->id,
+                'tanggal' => $this->selectedDate,
+                'jam_mulai' => $this->selectedDate . ' ' . $timeSlot['jam_mulai'],
+                'jam_selesai' => $this->selectedDate . ' ' . $timeSlot['jam_selesai'],
+                'nama_pemesan' => $this->nama_pemesan,
+                'nomor_telepon' => $this->nomor_telepon,
+                'status' => 'pending'
+            ]);
+
+            DB::commit();
+
+            session()->flash('success', 'Booking berhasil dibuat! Silakan tunggu konfirmasi.');
+
+            $this->sendWhatsAppNotification($booking, $timeSlot);
+
+            $this->reset(['nama_pemesan', 'nomor_telepon', 'selectedTimeSlot']);
+            $this->nomor_telepon = '62';
+            $this->updateAvailableTimeSlots();
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Booking Error: ' . $e->getMessage());
+            session()->flash('error', 'Terjadi kesalahan saat membuat booking.');
+        }
+    }
+
+    protected function sendWhatsAppNotification($booking, $timeSlot)
+{
+    $curl = curl_init();
+
+    // Normalisasi nomor telepon
+    $phone = preg_replace('/[^0-9]/', '', $this->nomor_telepon); // hapus karakter non-digit
+    if (substr($phone, 0, 1) === '0') {
+        $phone = '62' . substr($phone, 1);
+    } elseif (!str_starts_with($phone, '62')) {
+        $phone = '62' . $phone;
+    }
+
+    // Format pesan WhatsApp
+    $message = "Halo {$this->nama_pemesan},\n\n";
+    $message .= "Terima kasih telah melakukan booking di {$this->lapangan->nama}.\n";
+    $message .= "Detail Booking:\n";
+    $message .= "Tanggal: " . date('d F Y', strtotime($booking->tanggal)) . "\n";
+    $message .= "Jam: {$timeSlot['jam_mulai']} - {$timeSlot['jam_selesai']}\n";
+    $message .= "Kami akan segera menghubungi Anda untuk konfirmasi lebih lanjut.\n";
+    $message .= "Terima kasih.";
+
+    // Ambil API Token dari .env
+    $apiToken = env('FONNTE_API_TOKEN');
+    if (!$apiToken) {
+        Log::warning('FONNTE_API_TOKEN is not set.');
+        return;
+    }
+
+    // Konfigurasi CURL
+    curl_setopt_array($curl, [
+        CURLOPT_URL => 'https://api.fonnte.com/send',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => 'POST',
+        CURLOPT_POSTFIELDS => [
+            'target' => $phone,
+            'message' => $message,
+            'countryCode' => '62',
+        ],
+        CURLOPT_HTTPHEADER => [
+            'Authorization: ' . $apiToken,
+        ],
+    ]);
+
+    $response = curl_exec($curl);
+
+    // Logging jika gagal
+    if (curl_errno($curl)) {
+        Log::error('Fonnte API Error: ' . curl_error($curl));
+    } else {
+        Log::info("Fonnte WhatsApp sent to $phone | Response: " . $response);
+    }
+
+    curl_close($curl);
+}
+
+
+    public function render()
+    {
+        return view('livewire.booking-form');
+    }
+}
