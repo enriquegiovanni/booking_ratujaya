@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\BookingResource\Pages;
-use App\Filament\Resources\BookingResource\RelationManagers;
 use App\Models\Booking;
 use App\Models\Lapangan;
 use Filament\Forms;
@@ -16,15 +15,12 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class BookingResource extends Resource
 {
     protected static ?string $model = Booking::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
-
     protected static ?string $navigationLabel = 'Booking';
     protected static ?string $modelLabel = 'Booking';
 
@@ -42,28 +38,20 @@ class BookingResource extends Resource
                     ->native(false)
                     ->minDate(now()),
 
-                TimePicker::make('jam_mulai')
-                    ->required()
-                    ->seconds(false),
+                TimePicker::make('jam_mulai')->required()->seconds(false),
+                TimePicker::make('jam_selesai')->required()->seconds(false),
 
-                TimePicker::make('jam_selesai')
-                    ->required()
-                    ->seconds(false),
-
-                TextInput::make('nama_pemesan')
-                    ->required(),
-
-                TextInput::make('nomor_telepon')
-                    ->required(),
+                TextInput::make('nama_pemesan')->required(),
+                TextInput::make('nomor_telepon')->required(),
 
                 Select::make('status')
                     ->options([
                         'pending' => 'Menunggu',
                         'confirmed' => 'Dikonfirmasi',
                         'cancelled' => 'Dibatalkan',
-                        'completed' => 'Selesai'
+                        'completed' => 'Selesai',
                     ])
-                    ->required()
+                    ->required(),
             ]);
     }
 
@@ -71,27 +59,12 @@ class BookingResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('lapangan.title')
-                    ->label('Lapangan')
-                    ->searchable()
-                    ->sortable(),
-
-                TextColumn::make('tanggal')
-                    ->date()
-                    ->sortable(),
-
-                TextColumn::make('jam_mulai')
-                    ->time('H:i'),
-
-                TextColumn::make('jam_selesai')
-                    ->time('H:i'),
-
-                TextColumn::make('nama_pemesan')
-                    ->searchable(),
-
-                TextColumn::make('nomor_telepon')
-                    ->searchable(),
-
+                TextColumn::make('lapangan.title')->label('Lapangan')->searchable()->sortable(),
+                TextColumn::make('tanggal')->date()->sortable(),
+                TextColumn::make('jam_mulai')->time('H:i'),
+                TextColumn::make('jam_selesai')->time('H:i'),
+                TextColumn::make('nama_pemesan')->searchable(),
+                TextColumn::make('nomor_telepon')->searchable(),
                 TextColumn::make('status')
                     ->badge()
                     ->color(fn(string $state): string => match ($state) {
@@ -104,12 +77,10 @@ class BookingResource extends Resource
                         'pending' => 'Menunggu',
                         'confirmed' => 'Dikonfirmasi',
                         'cancelled' => 'Dibatalkan',
-                        'completed' => 'Selesai'
-                    })
+                        'completed' => 'Selesai',
+                    }),
             ])
-            ->filters([
-                //
-            ])
+            ->filters([])
             ->actions([
                 Tables\Actions\EditAction::make(),
             ])
@@ -122,16 +93,14 @@ class BookingResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     public static function getPages(): array
     {
         return [
             'index' => Pages\ListBookings::route('/'),
-            'create' => Pages\CreateBooking::route('/create'),
+            // 'create' => Pages\CreateBooking::route('/create'), // Dihapus agar tidak bisa buat booking
             'edit' => Pages\EditBooking::route('/{record}/edit'),
         ];
     }

@@ -148,84 +148,115 @@ class BookingForm extends Component
     }
 
     public function submitBooking()
-    {
-        $this->validate([
-            'nama_pemesan' => 'required|string|max:255',
-            'nomor_telepon' => 'required|string|max:20',
-        ]);
+{
+    $this->validate([
+        'nama_pemesan' => 'required|string|max:255',
+        'nomor_telepon' => 'required|string|max:20',
+    ]);
 
-        if (!$this->selectedDate || !$this->selectedTimeSlot) {
-            session()->flash('error', 'Silakan pilih tanggal dan jam terlebih dahulu.');
-            return;
-        }
-
-        $timeSlot = collect($this->availableTimeSlots)
-            ->firstWhere('slot_key', $this->selectedTimeSlot);
-
-        if (!$timeSlot || $timeSlot['is_booked']) {
-            session()->flash('error', 'Maaf, slot waktu yang dipilih sudah tidak tersedia.');
-            $this->updateAvailableTimeSlots();
-            return;
-        }
-
-        try {
-            DB::beginTransaction();
-
-            $booking = Booking::create([
-                'lapangan_id' => $this->lapangan->id,
-                'tanggal' => $this->selectedDate,
-                'jam_mulai' => $this->selectedDate . ' ' . $timeSlot['jam_mulai'],
-                'jam_selesai' => $this->selectedDate . ' ' . $timeSlot['jam_selesai'],
-                'nama_pemesan' => $this->nama_pemesan,
-                'nomor_telepon' => $this->nomor_telepon,
-                'status' => 'pending'
-            ]);
-
-            DB::commit();
-
-            session()->flash('success', 'Booking berhasil dibuat! Silakan tunggu konfirmasi.');
-
-            $this->sendWhatsAppNotification($booking, $timeSlot);
-
-            $this->reset(['nama_pemesan', 'nomor_telepon', 'selectedTimeSlot']);
-            $this->nomor_telepon = '62';
-            $this->updateAvailableTimeSlots();
-        } catch (\Exception $e) {
-            DB::rollback();
-            Log::error('Booking Error: ' . $e->getMessage());
-            session()->flash('error', 'Terjadi kesalahan saat membuat booking.');
-        }
+    if (!$this->selectedDate || !$this->selectedTimeSlot) {
+        $this->js("
+            window.dispatchEvent(new CustomEvent('swal:error', {
+                detail: { message: 'Silakan pilih tanggal dan jam terlebih dahulu.' }
+            }))
+        ");
+        return;
     }
 
-    protected function sendWhatsAppNotification($booking, $timeSlot)
+    $timeSlot = collect($this->availableTimeSlots)
+        ->firstWhere('slot_key', $this->selectedTimeSlot);
+
+    if (!$timeSlot || $timeSlot['is_booked']) {
+        $this->js("
+            window.dispatchEvent(new CustomEvent('swal:error', {
+                detail: { message: 'Maaf, slot waktu yang dipilih sudah tidak tersedia.' }
+            }))
+        ");
+        $this->updateAvailableTimeSlots();
+        return;
+    }
+
+    try {
+        DB::beginTransaction();
+
+        $booking = Booking::create([
+            'lapangan_id' => $this->lapangan->id,
+            'tanggal' => $this->selectedDate,
+            'jam_mulai' => $this->selectedDate . ' ' . $timeSlot['jam_mulai'],
+            'jam_selesai' => $this->selectedDate . ' ' . $timeSlot['jam_selesai'],
+            'nama_pemesan' => $this->nama_pemesan,
+            'nomor_telepon' => $this->nomor_telepon,
+            'status' => 'pending'
+        ]);
+
+        DB::commit();
+
+        // Kirim invoice via WhatsApp
+        $this->sendWhatsAppInvoice($booking, $timeSlot);
+
+        $this->js("
+            window.dispatchEvent(new CustomEvent('swal:success', {
+                detail: { message: 'Booking berhasil dibuat! Silakan tunggu konfirmasi.' }
+            }))
+        ");
+
+        $this->reset(['nama_pemesan', 'nomor_telepon', 'selectedTimeSlot']);
+        $this->nomor_telepon = '62';
+        $this->updateAvailableTimeSlots();
+    } catch (\Exception $e) {
+        DB::rollback();
+        Log::error('Booking Error: ' . $e->getMessage());
+
+        $this->js("
+            window.dispatchEvent(new CustomEvent('swal:error', {
+                detail: { message: 'Terjadi kesalahan saat membuat booking.' }
+            }))
+        ");
+    }
+}
+
+    protected function sendWhatsAppInvoice($booking, $timeSlot)
 {
     $curl = curl_init();
 
-    // Normalisasi nomor telepon
-    $phone = preg_replace('/[^0-9]/', '', $this->nomor_telepon); // hapus karakter non-digit
+    // Normalisasi nomor telepon (awalan 0 -> 62)
+    $phone = preg_replace('/[^0-9]/', '', $this->nomor_telepon);
     if (substr($phone, 0, 1) === '0') {
         $phone = '62' . substr($phone, 1);
     } elseif (!str_starts_with($phone, '62')) {
         $phone = '62' . $phone;
     }
 
-    // Format pesan WhatsApp
-    $message = "Halo {$this->nama_pemesan},\n\n";
-    $message .= "Terima kasih telah melakukan booking di {$this->lapangan->nama}.\n";
-    $message .= "Detail Booking:\n";
-    $message .= "Tanggal: " . date('d F Y', strtotime($booking->tanggal)) . "\n";
-    $message .= "Jam: {$timeSlot['jam_mulai']} - {$timeSlot['jam_selesai']}\n";
-    $message .= "Kami akan segera menghubungi Anda untuk konfirmasi lebih lanjut.\n";
-    $message .= "Terima kasih.";
+    // Harga (fallback Rp 40.000 jika tidak ada)
+    $harga = $timeSlot['price'] ?? 40000;
+    $formattedPrice = 'Rp ' . number_format($harga, 0, ',', '.');
 
-    // Ambil API Token dari .env
-    $apiToken = env('FONNTE_API_TOKEN');
-    if (!$apiToken) {
-        Log::warning('FONNTE_API_TOKEN is not set.');
+    // Kode unik booking
+    $kodeBooking = 'BK-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
+
+    // Format invoice
+    $message = "*INVOICE BOOKING GOR RATU JAYA RATUJAYA*\n";
+    $message .= "==============================\n";
+    $message .= "📌 *Kode Booking* : *{$kodeBooking}*\n";
+    $message .= "👤 *Nama*         : {$this->nama_pemesan}\n";
+    $message .= "🏸 *Lapangan*     : {$this->lapangan->title}\n";
+    $message .= "📅 *Tanggal*      : " . date('d F Y', strtotime($booking->tanggal)) . "\n";
+    $message .= "⏰ *Jam*          : {$timeSlot['jam_mulai']} - {$timeSlot['jam_selesai']}\n";
+    $message .= "💰 *Harga*        : {$formattedPrice}\n";
+    $message .= "==============================\n";
+    $message .= "📍 *Lokasi*: GOR Ratu Jaya, Depok\n";
+    $message .= "Silakan datang 10 menit sebelum waktu main.\n\n";
+    $message .= "❗ Simpan pesan ini sebagai bukti booking.\n";
+    $message .= "_Terima kasih telah booking di GOR Ratu Jaya!_ 🙏";
+
+    // Ambil token dari .env
+    $token = env('FONNTE_API_TOKEN');
+    if (!$token) {
+        Log::warning('FONNTE_API_TOKEN not set');
         return;
     }
 
-    // Konfigurasi CURL
+    // Kirim ke Fonnte
     curl_setopt_array($curl, [
         CURLOPT_URL => 'https://api.fonnte.com/send',
         CURLOPT_RETURNTRANSFER => true,
@@ -236,22 +267,20 @@ class BookingForm extends Component
             'countryCode' => '62',
         ],
         CURLOPT_HTTPHEADER => [
-            'Authorization: ' . $apiToken,
+            'Authorization: ' . $token,
         ],
     ]);
 
     $response = curl_exec($curl);
 
-    // Logging jika gagal
     if (curl_errno($curl)) {
-        Log::error('Fonnte API Error: ' . curl_error($curl));
+        Log::error('WhatsApp API Error: ' . curl_error($curl));
     } else {
-        Log::info("Fonnte WhatsApp sent to $phone | Response: " . $response);
+        Log::info("Invoice sent to $phone | Fonnte: $response");
     }
 
     curl_close($curl);
 }
-
 
     public function render()
     {

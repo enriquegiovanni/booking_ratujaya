@@ -124,7 +124,6 @@ class LapanganResource extends Resource
     {
         return [
             'index' => Pages\ListLapangans::route('/'),
-            'create' => Pages\CreateLapangan::route('/create'),
             'edit' => Pages\EditLapangan::route('/{record}/edit'),
         ];
     }
