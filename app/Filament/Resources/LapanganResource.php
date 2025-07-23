@@ -74,8 +74,10 @@ class LapanganResource extends Resource
                     ->columnSpanFull()
                     ->helperText('Maksimal 3 gambar'),
 
-                Toggle::make('status')
-                    ->default(true)
+               Toggle::make('status')
+                ->default(true)
+                ->disabled(fn ($record) => $record && $record->isFullyBookedOnDate(today()))
+
             ]);
     }
 

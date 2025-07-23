@@ -28,8 +28,6 @@
                             class="py-2.5 px-3 md:px-6 rounded-xl bg-white text-black font-semibold transition hover:bg-primary/90 hover:text-white">Home</a>
                         <a href="#booking"
                             class="py-2.5 px-3 md:px-6 rounded-xl bg-white text-black font-semibold transition hover:bg-primary/90 hover:text-white">Booking</a>
-                        <a href="{{ url('/admin/login') }}"
-                            class="py-2.5 px-3 md:px-6 rounded-xl bg-white text-black font-semibold transition hover:bg-primary/90 hover:text-white">Login</a>
                     </div>
                 </div>
             </nav>

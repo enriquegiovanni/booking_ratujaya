@@ -14,7 +14,7 @@ class BookingForm extends Component
 {
     public $lapangan;
     public $selectedDate;
-    public $selectedTimeSlot;
+    public $selectedTimeSlots = [];
     public $nama_pemesan;
     public $nomor_telepon;
 
@@ -69,15 +69,31 @@ class BookingForm extends Component
     public function selectDate($date)
     {
         $this->selectedDate = $date;
-        $this->selectedTimeSlot = null;
+        $this->selectedTimeSlots = [];
         $this->updateAvailableTimeSlots();
     }
 
-    public function selectTimeSlot($timeSlot)
-    {
-        $this->selectedTimeSlot = $timeSlot;
-        $this->calculatePrice();
+    public function selectAllTimeSlots()
+{
+    $this->selectedTimeSlots = collect($this->availableTimeSlots)
+        ->filter(fn($slot) => !$slot['is_booked'])
+        ->pluck('slot_key')
+        ->toArray();
+
+    $this->calculatePrice();
+}
+    public function selectTimeSlot($slotKey)
+{
+    if (in_array($slotKey, $this->selectedTimeSlots)) {
+        // Hapus jika sudah dipilih (toggle off)
+        $this->selectedTimeSlots = array_diff($this->selectedTimeSlots, [$slotKey]);
+    } else {
+        // Tambah jika belum dipilih
+        $this->selectedTimeSlots[] = $slotKey;
     }
+
+    $this->calculatePrice();
+}
 
     public function updateAvailableTimeSlots()
     {
@@ -141,11 +157,17 @@ class BookingForm extends Component
     }
 
     public function calculatePrice()
-    {
-        if ($this->selectedTimeSlot && $this->lapangan->price) {
-            $this->totalPrice = $this->lapangan->price;
+{
+    $total = 0;
+    foreach ($this->selectedTimeSlots as $slotKey) {
+        $slot = collect($this->availableTimeSlots)->firstWhere('slot_key', $slotKey);
+        if ($slot && !$slot['is_booked']) {
+            $total += $slot['price'];
         }
     }
+    $this->totalPrice = $total;
+}
+
 
     public function submitBooking()
 {
@@ -154,68 +176,60 @@ class BookingForm extends Component
         'nomor_telepon' => 'required|string|max:20',
     ]);
 
-    if (!$this->selectedDate || !$this->selectedTimeSlot) {
-        $this->js("
-            window.dispatchEvent(new CustomEvent('swal:error', {
-                detail: { message: 'Silakan pilih tanggal dan jam terlebih dahulu.' }
-            }))
-        ");
-        return;
-    }
-
-    $timeSlot = collect($this->availableTimeSlots)
-        ->firstWhere('slot_key', $this->selectedTimeSlot);
-
-    if (!$timeSlot || $timeSlot['is_booked']) {
-        $this->js("
-            window.dispatchEvent(new CustomEvent('swal:error', {
-                detail: { message: 'Maaf, slot waktu yang dipilih sudah tidak tersedia.' }
-            }))
-        ");
-        $this->updateAvailableTimeSlots();
+    if (!$this->selectedDate || count($this->selectedTimeSlots) === 0) {
+        $this->js("window.dispatchEvent(new CustomEvent('swal:error', {
+            detail: { message: 'Silakan pilih tanggal dan jam terlebih dahulu.' }
+        }))");
         return;
     }
 
     try {
         DB::beginTransaction();
 
-        $booking = Booking::create([
-            'lapangan_id' => $this->lapangan->id,
-            'tanggal' => $this->selectedDate,
-            'jam_mulai' => $this->selectedDate . ' ' . $timeSlot['jam_mulai'],
-            'jam_selesai' => $this->selectedDate . ' ' . $timeSlot['jam_selesai'],
-            'nama_pemesan' => $this->nama_pemesan,
-            'nomor_telepon' => $this->nomor_telepon,
-            'status' => 'pending'
-        ]);
+        $bookings = [];
+        foreach ($this->selectedTimeSlots as $slotKey) {
+            $slot = collect($this->availableTimeSlots)->firstWhere('slot_key', $slotKey);
+            if (!$slot || $slot['is_booked']) continue;
+
+            $booking = Booking::create([
+                'lapangan_id' => $this->lapangan->id,
+                'tanggal' => $this->selectedDate,
+                'jam_mulai' => $this->selectedDate . ' ' . $slot['jam_mulai'],
+                'jam_selesai' => $this->selectedDate . ' ' . $slot['jam_selesai'],
+                'nama_pemesan' => $this->nama_pemesan,
+                'nomor_telepon' => $this->nomor_telepon,
+                'status' => 'confirmed',
+            ]);
+
+            $bookings[] = $booking;
+        }
 
         DB::commit();
 
-        // Kirim invoice via WhatsApp
-        $this->sendWhatsAppInvoice($booking, $timeSlot);
+        // Kirim hanya invoice untuk slot pertama (opsional)
+        if (count($bookings)) {
+            $this->sendWhatsAppInvoice($bookings[0], collect($this->availableTimeSlots)->firstWhere('slot_key', $this->selectedTimeSlots[0]));
+        }
 
-        $this->js("
-            window.dispatchEvent(new CustomEvent('swal:success', {
-                detail: { message: 'Booking berhasil dibuat! Silakan tunggu konfirmasi.' }
-            }))
-        ");
+        $this->js("window.dispatchEvent(new CustomEvent('swal:success', {
+            detail: { message: 'Booking berhasil dibuat! Silakan tunggu konfirmasi.' }
+        }))");
 
-        $this->reset(['nama_pemesan', 'nomor_telepon', 'selectedTimeSlot']);
+        $this->reset(['nama_pemesan', 'nomor_telepon', 'selectedTimeSlots']);
         $this->nomor_telepon = '62';
         $this->updateAvailableTimeSlots();
     } catch (\Exception $e) {
         DB::rollback();
         Log::error('Booking Error: ' . $e->getMessage());
 
-        $this->js("
-            window.dispatchEvent(new CustomEvent('swal:error', {
-                detail: { message: 'Terjadi kesalahan saat membuat booking.' }
-            }))
-        ");
+        $this->js("window.dispatchEvent(new CustomEvent('swal:error', {
+            detail: { message: 'Terjadi kesalahan saat membuat booking.' }
+        }))");
     }
 }
 
-    protected function sendWhatsAppInvoice($booking, $timeSlot)
+
+   protected function sendWhatsAppInvoice($booking, $selectedTimeSlots)
 {
     $curl = curl_init();
 
@@ -227,22 +241,34 @@ class BookingForm extends Component
         $phone = '62' . $phone;
     }
 
-    // Harga (fallback Rp 40.000 jika tidak ada)
-    $harga = $timeSlot['price'] ?? 40000;
-    $formattedPrice = 'Rp ' . number_format($harga, 0, ',', '.');
+    // Total harga & format jam
+    $totalHarga = 0;
+    $jamList = [];
 
-    // Kode unik booking
+    foreach ($this->selectedTimeSlots as $selectedKey) {
+    $slot = collect($this->availableTimeSlots)->firstWhere('slot_key', $selectedKey);
+
+    if ($slot) {
+        $totalHarga += $slot['price'] ?? 40000;
+        $jamList[] = "{$slot['jam_mulai']} - {$slot['jam_selesai']}";
+    }
+}
+
+    $formattedTotal = 'Rp ' . number_format($totalHarga, 0, ',', '.');
     $kodeBooking = 'BK-' . now()->format('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
 
-    // Format invoice
-    $message = "*INVOICE BOOKING GOR RATU JAYA RATUJAYA*\n";
+    // Gabungkan semua jam
+    $jamGabungan = implode("\n⏰ ", $jamList);
+
+    // Format pesan WhatsApp
+    $message = "*INVOICE BOOKING GOR RATU JAYA*\n";
     $message .= "==============================\n";
     $message .= "📌 *Kode Booking* : *{$kodeBooking}*\n";
     $message .= "👤 *Nama*         : {$this->nama_pemesan}\n";
     $message .= "🏸 *Lapangan*     : {$this->lapangan->title}\n";
     $message .= "📅 *Tanggal*      : " . date('d F Y', strtotime($booking->tanggal)) . "\n";
-    $message .= "⏰ *Jam*          : {$timeSlot['jam_mulai']} - {$timeSlot['jam_selesai']}\n";
-    $message .= "💰 *Harga*        : {$formattedPrice}\n";
+    $message .= "⏰ *Jam*          :\n⏰ {$jamGabungan}\n";
+    $message .= "💰 *Total Harga*  : {$formattedTotal}\n";
     $message .= "==============================\n";
     $message .= "📍 *Lokasi*: GOR Ratu Jaya, Depok\n";
     $message .= "Silakan datang 10 menit sebelum waktu main.\n\n";

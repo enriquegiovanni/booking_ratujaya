@@ -30,19 +30,15 @@
             </div>
         </div>
 
-        <div class="w-full md:w-4/12">
-            <div class="rounded-xl bg-white p-6">
-                <p class="mb-0 text-gray-500">Mulai dari</p>
-                <p class="mb-5 font-semibold text-lg">
-                    Rp. 40,000 <span class="text-xs font-normal">per sesi</span>
-                </p>
+        <div class="w-full md:w-6/12 lg:w-4/12">
+    <div class="rounded-2xl bg-white p-10 shadow-lg">
+        <p class="mb-2 text-gray-500 text-base">Mulai dari</p>
+        <p class="font-bold text-3xl text-black">
+            Rp. 40,000 <span class="text-sm font-normal text-gray-600">per sesi</span>
+        </p>
+    </div>
+</div>
 
-                <a href="#booking-form"
-                    class="py-2.5 px-3 md:px-6 rounded-xl bg-primary text-white font-semibold transition hover:bg-primary/90 w-full block text-center">
-                    Pilih Tanggal dan Jam
-                </a>
-            </div>
-        </div>
     </div>
 
     {{-- 📅 PILIH TANGGAL --}}
@@ -63,37 +59,47 @@
     </div>
 
     {{-- ⏰ PILIH JAM --}}
-    @if ($selectedDate)
-        <p class="text-lg font-medium mb-5">Pilih Jam</p>
-        <div class="grid grid-cols-2 md:grid-cols-6 gap-2 mb-5">
-            @foreach ($availableTimeSlots as $slot)
-                @if ($slot['is_booked'])
-                    <button class="bg-white border border-gray-200 rounded-xl text-center text-gray-400 p-6 transition">
-                        <p class="font-normal text-sm">60 Menit</p>
-                        <p class="font-semibold">{{ $slot['label'] }}</p>
-                        <p class="font-normal text-sm">Booked</p>
-                    </button>
-                @else
-                    <button wire:click="selectTimeSlot('{{ $slot['slot_key'] }}')"
-                        class="relative cursor-pointer bg-white border rounded-xl text-center text-black p-6 {{ $selectedTimeSlot === $slot['slot_key'] ? 'border-primary' : 'border-gray-200 hover:border-primary' }}">
-                        <p class="font-normal text-sm">60 Menit</p>
-                        <p class="font-semibold">{{ $slot['label'] }}</p>
-                        <p class="font-normal text-sm">Rp. {{ number_format($slot['price']) }}</p>
+@if ($selectedDate)
+    <p class="text-lg font-medium mb-5">Pilih Jam</p>
+    <div class="grid grid-cols-2 md:grid-cols-6 gap-2 mb-5">
+    <div class="flex justify-end space-x-3 mb-4">
+    <button 
+        wire:click="selectAllTimeSlots"
+        class="bg-primary text-white px-4 py-2 rounded hover:bg-primary/80 transition">
+        Pilih Semua Jam
+    </button>
+</div>
 
-                        @if ($selectedTimeSlot === $slot['slot_key'])
-                            <span
-                                class="size-7 rounded-full bg-primary text-white absolute top-1 right-1 flex items-center justify-center">
-                                <i class="ai-check"></i>
-                            </span>
-                        @endif
-                    </button>
-                @endif
-            @endforeach
-        </div>
-    @endif
+        @foreach ($availableTimeSlots as $slot)
+            @if ($slot['is_booked'])
+                <button class="bg-white border border-gray-200 rounded-xl text-center text-gray-400 p-6 transition">
+                    <p class="font-normal text-sm">60 Menit</p>
+                    <p class="font-semibold">{{ $slot['label'] }}</p>
+                    <p class="font-normal text-sm">Booked</p>
+                </button>
+            @else
+                <button wire:click="selectTimeSlot('{{ $slot['slot_key'] }}')"
+                    class="relative cursor-pointer bg-white border rounded-xl text-center text-black p-6
+                        {{ in_array($slot['slot_key'], $selectedTimeSlots) ? 'border-primary' : 'border-gray-200 hover:border-primary' }}">
+                    <p class="font-normal text-sm">60 Menit</p>
+                    <p class="font-semibold">{{ $slot['label'] }}</p>
+                    <p class="font-normal text-sm">Rp. {{ number_format($slot['price']) }}</p>
+
+                    @if (in_array($slot['slot_key'], $selectedTimeSlots))
+                        <span
+                            class="size-7 rounded-full bg-primary text-white absolute top-1 right-1 flex items-center justify-center">
+                            <i class="ai-check"></i>
+                        </span>
+                    @endif
+                </button>
+            @endif
+        @endforeach
+    </div>
+@endif
+
 
     {{-- 🧍 ISI DATA DIRI --}}
-    @if ($selectedDate && $selectedTimeSlot)
+    @if ($selectedDate && count($selectedTimeSlots) > 0)
         <p class="text-lg font-medium mb-5">Isi Data Diri</p>
         <form wire:submit.prevent="submitBooking">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">

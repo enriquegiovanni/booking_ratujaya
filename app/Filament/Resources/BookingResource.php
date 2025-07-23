@@ -44,13 +44,13 @@ class BookingResource extends Resource
                 TextInput::make('nama_pemesan')->required(),
                 TextInput::make('nomor_telepon')->required(),
 
+                // Hanya 1 opsi status: confirmed
                 Select::make('status')
                     ->options([
-                        'pending' => 'Menunggu',
                         'confirmed' => 'Dikonfirmasi',
-                        'cancelled' => 'Dibatalkan',
-                        'completed' => 'Selesai',
                     ])
+                    ->default('confirmed')
+                    ->disabled()
                     ->required(),
             ]);
     }
