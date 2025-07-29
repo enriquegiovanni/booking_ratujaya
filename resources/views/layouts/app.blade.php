@@ -26,9 +26,9 @@
                     <div class="flex justify-end gap-2">
                         <a href="{{ route('home') }}"
                             class="py-2.5 px-3 md:px-6 rounded-xl bg-white text-black font-semibold transition hover:bg-primary/90 hover:text-white">Home</a>
-                        <a href="#booking"
+                        <a href="{{ url('/#booking') }}"
                             class="py-2.5 px-3 md:px-6 rounded-xl bg-white text-black font-semibold transition hover:bg-primary/90 hover:text-white">Booking</a>
-                    </div>
+
                 </div>
             </nav>
             @yield('header')
@@ -39,24 +39,16 @@
     @yield('content')
 
     <!-- ⏬ FOOTER -->
-    <footer class="py-6 bg-[#101C1C]">
-        <div class="max-w-6xl mx-auto px-4">
-            <div class="flex items-center justify-between">
-                <p class="text-white text-sm">&copy; Copyright 2025. GOR Ratu Jaya</p>
-                <div class="flex gap-4 justify-end">
-                    <a href="#" target="_blank" class="text-white text-base hover:text-primary transition">
-                        <i class="ai-whatsapp-fill"></i>
-                    </a>
-                    <a href="#" target="_blank" class="text-white text-base hover:text-primary transition">
-                        <i class="ai-instagram-fill"></i>
-                    </a>
-                    <a href="#" target="_blank" class="text-white text-base hover:text-primary transition">
-                        <i class="ai-youtube-fill"></i>
-                    </a>
-                </div>
-            </div>
+  <footer class="py-6 bg-[#101C1C]">
+    <div class="max-w-6xl mx-auto px-4">
+        <div class="flex justify-center">
+            <p class="text-white text-sm text-center">
+                &copy; Copyright 2025. GOR Ratu Jaya
+            </p>
         </div>
-    </footer>
+    </div>
+</footer>
+
 
     <!-- 🔔 SweetAlert2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

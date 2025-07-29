@@ -12,38 +12,6 @@
 @endsection
 
 @section('content')
-    <section id="booking" class="pt-10 md:pt-24">
-        <div class="max-w-6xl mx-auto px-4">
-            <span
-                class="mx-auto w-max py-2 px-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center gap-2">
-                <i class="ai-align-left"></i>
-                Pilih Lapangan
-            </span>
-            <h2 class="text-center text-2xl md:text-4xl font-bold mt-3">
-                Pilih Lapangan Badminton
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
-                @foreach ($lapangan as $item)
-                    <a href="{{ route('lapangan.detail', $item->id) }}"
-                        class="bg-white border border-transparent rounded-2xl transition hover:border-primary">
-                        <img src="{{ asset('storage/' . (is_array($item->images) && count($item->images) > 0 ? $item->images[0] : 'default-lapangan.png')) }}"
-                            class="w-full h-60 rounded-t-2xl object-cover" alt="">
-                        <div class="p-6">
-                            <span
-                                class="text-xs w-max py-2 px-6 rounded-full {{ $item->category == 'lapangan1' ? 'bg-tertiary' : 'bg-primary' }} text-white font-semibold flex items-center gap-2">
-                                <i class="ai-star"></i>
-                                {{ $item->category }}
-                            </span>
-                            <h4 class="text-xl font-semibold mt-2">{{ $item->title }}</h4>
-                            <p class="text-gray-500">
-                                Mulai dari Rp. {{ number_format($item->price) }} <span class="text-xs">/jam</span>
-                            </p>
-                        </div>
-                    </a>
-                @endforeach
-            </div>
-        </div>
-    </section>
     <section class="pt-10 md:pt-24">
         <div class="max-w-6xl mx-auto px-4">
             <span
@@ -77,24 +45,45 @@
                         3
                     </span>
                     <h5 class="font-semibold text-2xl mt-4">
-                        Isi Nama & No HP
+                        Isi Data Diri
                     </h5>
                 </div>
             </div>
         </div>
     </section>
-    <section class="pt-10 md:pt-24">
-    <div class="max-w-6xl mx-auto px-4 text-center">
-        <span class="mx-auto w-max py-2 px-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center gap-2">
-            <i class="ai-image"></i>
-            Tentang Kami
-        </span>
-        <h2 class="text-2xl md:text-4xl font-bold mt-3">Tentang Kami</h2>
 
-        <p class="mt-4 text-gray-700 text-lg md:text-xl leading-relaxed max-w-3xl mx-auto">
-    GOR Ratu Jaya adalah pusat olahraga bulu tangkis yang hadir untuk memenuhi kebutuhan masyarakat akan fasilitas olahraga yang nyaman, terjangkau, dan berstandar tinggi.
-</p>
-
+    <section id="booking" class="pt-10 md:pt-24">
+        <div class="max-w-6xl mx-auto px-4">
+            <span
+                class="mx-auto w-max py-2 px-6 rounded-full bg-primary text-white text-xs font-semibold flex items-center gap-2">
+                <i class="ai-align-left"></i>
+                Pilih Lapangan
+            </span>
+            <h2 class="text-center text-2xl md:text-4xl font-bold mt-3">
+                Pilih Lapangan Badminton
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
+                @foreach ($lapangan as $item)
+                    <a href="{{ route('lapangan.detail', $item->id) }}"
+                        class="bg-white border border-transparent rounded-2xl transition hover:border-primary">
+                        <img src="{{ asset('storage/' . (is_array($item->images) && count($item->images) > 0 ? $item->images[0] : 'default-lapangan.png')) }}"
+                            class="w-full h-60 rounded-t-2xl object-cover" alt="">
+                        <div class="p-6">
+                            <span
+                                class="text-xs w-max py-2 px-6 rounded-full {{ $item->category == 'lapangan1' ? 'bg-tertiary' : 'bg-primary' }} text-white font-semibold flex items-center gap-2">
+                                <i class="ai-star"></i>
+                                {{ $item->category }}
+                            </span>
+                            <h4 class="text-xl font-semibold mt-2">{{ $item->title }}</h4>
+                            <p class="text-gray-500">
+                                Mulai dari Rp. {{ number_format($item->price) }} <span class="text-xs">/jam</span>
+                            </p>
+                        </div>
+                    </a>
+                @endforeach
+            </div>
+        </div>
+    </section>
         <!-- Tambahkan paragraf lainnya di sini -->
     </div>
 </section>

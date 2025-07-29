@@ -67,7 +67,7 @@ class SettingResource extends Resource
                     }),
 
                 TextColumn::make('value')
-                    ->label('Nilai')
+                    ->label('Jam')
                     ->searchable()
                     ->formatStateUsing(function (string $state, $record): string {
                         if (in_array($record->key, ['jam_buka', 'jam_tutup'])) {
@@ -111,7 +111,6 @@ class SettingResource extends Resource
     {
         return [
             'index' => Pages\ListSettings::route('/'),
-            'create' => Pages\CreateSetting::route('/create'),
             'edit' => Pages\EditSetting::route('/{record}/edit'),
         ];
     }
