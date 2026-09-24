@@ -1,24 +1,44 @@
+# Laravel
 *.log
-.DS_Store
 .env
 .env.backup
 .env.production
-.phpactor.json
 .phpunit.result.cache
-/.fleet
-/.idea
-/.nova
-/.phpunit.cache
-/.vscode
-/.zed
-/auth.json
+/vendor
 /node_modules
 /public/build
 /public/hot
 /public/storage
+
+# Database
+/database/database.sqlite
+/database/*.sqlite
+
+# Storage (uploaded files)
 /storage/*.key
+/storage/app/public/
 /storage/pail
-/vendor
+
+# Sessions & Cache
+/bootstrap/cache/*.php
+
+# Testing
+/.phpunit.cache
+/phpunit.result.cache
+
+# IDE & Editor
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
+/auth.json
+.phpactor.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
 Homestead.json
 Homestead.yaml
-Thumbs.db
